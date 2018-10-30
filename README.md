@@ -6,11 +6,11 @@ Visualize the process, Regular Expression -> NFA -> DFA -> minimized DFA
 
 ![](./sample/1.png)
 
-![](./sample/2.png)
+![](./sample/2.PNG)
 
-![](./sample/3.png)
+![](./sample/3.PNG)
 
-![](./sample/4.png)
+![](./sample/4.PNG)
 
 
 ## To Run the Program
