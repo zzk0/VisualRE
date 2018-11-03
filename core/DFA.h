@@ -114,6 +114,12 @@ public:
 
 	void generate_DOT(const char *name);
 
+	void generate_code(const char *name);
+
+	set<int> translate_to_a_set(const set<int>& A, char c);
+
+	DFA create_newDFA(const vector<set<int>>& newStates);
+
 private:
 	int lastAcceptState;
 	int currentState;
@@ -310,82 +316,77 @@ void DFA::mergeNondistinguishableStates()
 	}
 	set_difference(allStates.begin(), allStates.end(), finalStates.begin(), finalStates.end(), inserter(otherStates, otherStates.begin()));
 
-	queue<set<int>> newAllStates;
-	newAllStates.push(otherStates);
-	newAllStates.push(finalStates);
+	set<set<int>> P;
+	P.insert(finalStates);
+	P.insert(otherStates);
+	set<set<int>> W;
+	W.insert(finalStates);
 
-	vector<set<int>> newStates;
-
-	while (!newAllStates.empty())
+	while (!W.empty())
 	{
-		set<int> stateSet = newAllStates.front();
-		newAllStates.pop();
-		if (stateSet.size() == 1) {
-			newStates.push_back(stateSet);
-			continue;
-		}
-		set<int> A, B;
-		bool seperatable = false;
+		set<set<int>>::iterator it = W.begin();
+		set<int> A = *it;
+		W.erase(*it);
+
+		//if (A.size() == 1) continue;
+
 		for (int i = 0; i < 128; i++)
 		{
-			if (seperate(stateSet, char(i), A, B))
+			set<int> X = translate_to_a_set(A, char(i));
+			if (X.size() == 0) continue;
+
+			set<int> prev_set;
+			bool first = true;
+			for (set<int> Y : P)
 			{
-				newAllStates.push(A);
-				newAllStates.push(B);
-				seperatable = true;
-				break;
-			}
-		}
-		if (!seperatable) {
-			newStates.push_back(stateSet);
-		}
-	}
-
-	DFA newDFA;
-
-	for (int i = 0; i < newStates.size(); i++)
-	{
-		set<int> X = newStates[i];
-		set<int>::iterator it = X.find(startState);
-		if (it != X.end()) newDFA.setStartState(i);
-		newDFA.addState(translate());
-	}
-
-	set<int> newAcceptStates;
-	for (int i = 0; i < newStates.size(); i++)
-	{
-		for (int x : newStates[i])
-		{
-			for (int j = 0; j < 128; j++)
-			{
-				bool isAcceptState = false;
-				for (int state_i = 0; state_i < acceptStates.size(); state_i++)
+				if (!first)
 				{
-					if (acceptStates[state_i] == x) {
-						isAcceptState = true;
-						break;
+					set<set<int>>::iterator it = P.find(prev_set);
+					if (it != P.end()) {
+						P.erase(it);
 					}
 				}
-				int newCurrentState = findOwner(newStates, x);
+				set<int> intersection, difference;
+				set_intersection(X.begin(), X.end(), Y.begin(), Y.end(), inserter(intersection, intersection.begin()));
+				set_difference(Y.begin(), Y.end(), X.begin(), X.end(), inserter(difference, difference.begin()));
 
-				if (isAcceptState) {
-					//newDFA.addAcceptState(newCurrentState);
-					newAcceptStates.insert(newCurrentState);
+				if (intersection.size() == 0 || difference.size() == 0) continue;
+
+				prev_set = Y;
+				if (first) {
+					first = false;
 				}
+				P.insert(intersection);
+				P.insert(difference);
 
-				int nextState = states[x].table[j];
-				if (nextState == -1) continue;
-				int newNextState = findOwner(newStates, nextState);
-				newDFA.states[newCurrentState].table[j] = newNextState;
+				set<set<int>>::iterator wit = W.find(Y);
+				if (wit != W.end())
+				{
+					W.insert(intersection);
+					W.insert(difference);
+				}
+				else
+				{
+					if (difference.size() < intersection.size())
+					{
+						W.insert(difference);
+					}
+					else
+					{
+						W.insert(intersection);
+					}
+				}
 			}
 		}
 	}
-	for (auto x : newAcceptStates)
+
+	vector<set<int>> newStates;
+	for (set<int> x : P)
 	{
-		newDFA.addAcceptState(x);
+		newStates.push_back(x);
 	}
 
-	*this = newDFA;
+	*this = create_newDFA(newStates);
 }
 
 
@@ -508,4 +509,88 @@ int DFA::findOwner(vector<set<int>> P, int x)
 	{
 		if (P[i].find(x) != P[i].end()) return i;
 	}
+}
+
+
+void DFA::generate_code(const char * name)
+{
+	ofstream outFile(name);
+
+	outFile << "StartState = " << startState << ";" << endl;
+	outFile << "CurrentState = " << startState << ";" << endl;
+	outFile << "while(input(x)) {" << endl;
+	outFile << "\tnextState = currentState.table[int(x)];" << endl;
+	outFile << "}" << endl;
+
+	outFile << "if(acceptStates.find(nextState) { " << endl;
+	outFile << "\taccpet();" << endl;
+	outFile << "}" << endl;
+	outFile << "else {" << endl;
+	outFile << "\treject();" << endl;
+	outFile << "}";
+}
+
+
+set<int> DFA::translate_to_a_set(const set<int>& A, char c)
+{
+	set<int> result;
+	for (int i = 0; i < states.size(); i++)
+	{
+		int nextState = states[i].table[int(c)];
+		if (A.find(nextState) != A.end())
+		{
+			result.insert(i);
+		}
+	}
+	return result;
+}
+
+
+DFA DFA::create_newDFA(const vector<set<int>>& newStates)
+{
+	DFA newDFA;
+
+	for (int i = 0; i < newStates.size(); i++)
+	{
+		set<int> X = newStates[i];
+		set<int>::iterator it = X.find(startState);
+		if (it != X.end()) newDFA.setStartState(i);
+		newDFA.addState(translate());
+	}
+
+	set<int> newAcceptStates;
+	for (int i = 0; i < newStates.size(); i++)
+	{
+		for (int x : newStates[i])
+		{
+			for (int j = 0; j < 128; j++)
+			{
+				bool isAcceptState = false;
+				for (int state_i = 0; state_i < acceptStates.size(); state_i++)
+				{
+					if (acceptStates[state_i] == x) {
+						isAcceptState = true;
+						break;
+					}
+				}
+				int newCurrentState = findOwner(newStates, x);
+
+				if (isAcceptState) {
+					//newDFA.addAcceptState(newCurrentState);
+					newAcceptStates.insert(newCurrentState);
+				}
+
+				int nextState = states[x].table[j];
+				if (nextState == -1) continue;
+				int newNextState = findOwner(newStates, nextState);
+				newDFA.states[newCurrentState].table[j] = newNextState;
+			}
+		}
+	}
+	for (auto x : newAcceptStates)
+	{
+		newDFA.addAcceptState(x);
+	}
+
+	return newDFA;
 }

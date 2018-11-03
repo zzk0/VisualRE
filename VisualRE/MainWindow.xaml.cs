@@ -15,6 +15,7 @@ using System.Windows.Shapes;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Drawing;
+using System.Diagnostics;
 
 namespace VisualRE
 {
@@ -93,7 +94,7 @@ namespace VisualRE
 
         private void Button_Click_4(object sender, RoutedEventArgs e)
         {
-
+            Process.Start("notepad.exe", "generate_code.cpp");
         }
     }
 }

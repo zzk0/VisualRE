@@ -35,6 +35,8 @@ extern "C" _declspec(dllexport) void generate_dot(const char *str)
 	string dfaDot = "dfa.dt";
 	string miniDfaDot = "miniDfa.dt";
 	
+	lexer.dfa.generate_code("generate_code.cpp");
+
 	system((dotTool + argument + nfaDot).c_str());
 	system((dotTool + argument + dfaDot).c_str());
 	system((dotTool + argument + miniDfaDot).c_str());
